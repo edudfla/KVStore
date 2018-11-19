@@ -67,6 +67,8 @@ guarantee that they will be automatically freed when no more used? What is the
 performance penalty?
     Is it possible to restrict the valid types for key_type_name to only signed
 and unsigned integer types wit 8, 16, 32 and 64 bit?
+    Where is the best place to put the logic: in the container (KVStore) or in
+the contents (node_t)?
 */
 #include <cstdint>
 #include <memory>
