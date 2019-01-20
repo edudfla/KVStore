@@ -10,5 +10,11 @@
 #define PCH_H
 
 // TODO: add headers that you want to pre-compile here
+#include <cstdint>
+#include <memory>
+#include <cstdlib>
+#include <cstdio>
+#include <iostream>
+#include <algorithm>
 
 #endif //PCH_H
