@@ -25,5 +25,5 @@ int main(int argc, const char * * argv, const char * * envp) {
 			kv.store_or_update(argv[arg_i], argv_i_length, count);
 		}
 	}
-	kv.dump();
+	kv.dump_basic_test();
 }

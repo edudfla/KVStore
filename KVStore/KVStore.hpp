@@ -108,9 +108,9 @@ public:
     }
     uint32_t remove(const key_type_name* key, size_t key_length) {
     }
-	void dump() {
+	void dump_basic_test() {
 		if (m_root_node) {
-			m_root_node->dump();
+			m_root_node->dump_basic_test();
 		}
     }
     uint32_t balance() {
@@ -155,21 +155,21 @@ private:
 			value = *node->m_value;
 			return 0;
 		}
-		void dump() {
+		void dump_basic_test() {
 			if (m_leftward) {
-				m_leftward->dump();
+				m_leftward->dump_basic_test();
 			}
 			std::cout << m_key_atom;
 			if (m_assigned) {
 				std::cout << '(' << *m_value << ')';
 			}
 			if (m_downward) {
-				m_downward->dump();
+				m_downward->dump_basic_test();
 			} else {
-				std::cout << std::endl;
+				std::cout << ';';
 			}
 			if (m_rightward) {
-				m_rightward->dump();
+				m_rightward->dump_basic_test();
 			}
 		}
 	private:
