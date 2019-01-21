@@ -76,13 +76,14 @@ class anyway.
 
 #include <cstdint>
 #include <memory>
+#include <cassert>
 
 template <typename key_type_name, typename value_type_name>
 class KVStore {
 public:
 	static const uint32_t error_null_key = 1;
 	static const uint32_t error_empty_key = 2;
-	static const uint32_t error_no_matches = 3;
+	static const uint32_t error_key_not_found = 3;
 	static const uint32_t error_not_assigned = 4;
 	static const uint32_t error_empty_tree = 5;
     KVStore() : m_root_node(nullptr) {
@@ -106,6 +107,15 @@ public:
 		}
 		return m_root_node->retrieve(key, key_length, value);
     }
+	uint32_t remove(const key_type_name* key, const size_t key_length) {
+		if (!key) return error_null_key;
+		if (!key_length) return error_empty_key;
+		if (!m_root_node) {
+			return error_empty_tree;
+		}
+		m_root_node->remove(key, key_length);
+		return 0;
+	}
     uint32_t remove(const key_type_name* key, size_t key_length) {
     }
 	void dump_basic_test() {
@@ -120,6 +130,18 @@ private:
 	typedef node_t* node_p;
 	class node_t {
 	public:
+		void* operator new(size_t size) {
+			++m_allocated_nodes;
+			return malloc(size);
+		}
+		void operator delete(void* mem_ptr) {
+			if (nullptr == memptr) {
+				return;
+			}
+			assert(m_allocated_nodes);
+			--m_allocated_nodes;
+			free(mem_ptr);
+		}
 		node_t(const key_type_name* key, const size_t key_length, const value_type_name& value)
 			: m_key_atom(*key)
 			, m_assigned(1 == key_length)
@@ -147,13 +169,32 @@ private:
 			n_ward_t n_ward = exact_match;
 			node_p node = find_closest(key, key_length, matched_length, n_ward);
 			if (key_length != matched_length) {
-				return error_no_matches;
+				return error_key_not_found;
 			}
 			if (false == node->m_assigned) {
 				return error_not_assigned;
 			}
 			value = *node->m_value;
 			return 0;
+		}
+		uint32_t remove(const key_type_name* key, const size_t key_length) {
+			//
+			// The remove operation is sui generis in the sense that
+			// it needes a sort of m_backward (a reverse) pointer.
+			// Since this reverse pointer is not useful at anu other occasion,
+			// it is not worth keeping a permanent reference on it, so the
+			// temporary recursive stack reference is enouth.
+			//
+			if (!key) {
+				return error_null_key;
+			}
+			if (!key_length) {
+				return error_empty_key;
+			}
+			if (!m_root_node) {
+				return error_empty_tree;
+			}
+			return m_root_node->remove_internal(key, key_length);
 		}
 		void dump_basic_test() {
 			if (m_leftward) {
@@ -179,6 +220,7 @@ private:
         node_p m_rightward;
         node_p m_leftward;
         node_p m_downward;
+		static size_t m_allocated_nodes = 0;
         // Recursive constructor. How to differentiate when names are shared between properties and parameter?
 		typedef enum {
 			exact_match = 0,
@@ -239,6 +281,90 @@ private:
 				break;
 			}
 			return 0;
+		}
+		uint32_t remove_internal(const key_type_name* key, size_t key_length, bool& remove_me) {
+			// The remove operation is sui generis in the sense that
+			// it needes a sort of m_backward (a reverse) pointer.
+			// Since this reverse pointer is not useful at any other occasion,
+			// it is not worth keeping a permanent reference on it, so the
+			// temporary recursive stack reference is enough.
+			remove_me = false;
+			uint32 result = 0;
+			if (*key == m_key_atom) {
+				--key_length;
+				if (0 == key_length) {
+					if (m_assigned) {
+						m_assigned = false;
+					} else {
+						result = error_key_not_found;
+					}
+				} else {
+					if (m_downward) {
+						++key;
+						result = m_downward->remove_internal(key, key_length, remove_me);
+						if (0 == result && remove_me) {
+							delete m_downward;
+							m_downward = nullptr;
+							/*
+							+ac:    +ae     +ab     +ad        +af            -ac     
+							    a      a       a       a          a              a
+							    |      |       |       |          |              |
+							    c      c       c       c          c              d
+							            \     / \     / \        / \            / \
+							             e   b   e   b   \      b   \          b   e
+							                              \	         \              \
+							                               \          \              f
+							                                e          e
+							                               /          / \
+							                              d	         d   f
+
+                                   d                  d      
+                                   |                  |      
+                                   d                  d      
+                                  / \                / \     
+                                 /   \     -dd      /   \    
+                                /     \            /     \   
+                               b       f          b       f  
+                              / \     / \        / \     / \ 
+                             a   c   e   g      a   c   e   g
+                                                         \
+                             e.left is null by definition, because the next node just below the top d is the leftmost to d's right.
+                             e.left becomes equal to the left of the removed d
+                             e.right becomes equal to the right of the removed d
+                             f.left becomes the right of the moved e
+                             e becomes the bottom of the top d
+
+                             So, if a node is not assigned and has no downward node it can safely be
+							removed but the tree must be rearranged.
+							How to do this?????
+							*/
+							if (!m_assigned) {
+
+							}
+						}
+					}
+				}
+			} else {
+				if (*key > m_key_atom) {
+					if (m_rightward) {
+						result = m_rightward->remove_internal(key, key_length, remove_me);
+						if (0 == result && remove_me) {
+							delete m_rightward;
+							m_rightward = nullptr;
+						}
+					}
+				} else {
+					if (m_leftward) {
+						result = m_leftward->remove_internal(key, key_length, remove_me);
+						if (0 == result && remove_me) {
+							delete m_leftward;
+							m_leftward = nullptr;
+						}
+					}
+				}
+			}
+			remove_me = (0 == result && !m_assigned && !m_leftward && !m_downward && !m_rightward);
+			return result;
 		}
 	};
 	// 308 (pagina do livro)
